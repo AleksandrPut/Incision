@@ -46,7 +46,34 @@
 
 #include <NXOpen/NXObjectManager.hxx>
 #include <NXOpen/Drawings_EditViewSettingsBuilder.hxx>
+#include <NXOpen/AttributePropertiesBuilder.hxx>
 
+
+#include <uf_defs.h>
+#include <NXOpen/NXException.hxx>
+#include <NXOpen/Session.hxx>
+#include <NXOpen/AttributeManager.hxx>
+#include <NXOpen/AttributePropertiesBaseBuilder.hxx>
+#include <NXOpen/AttributePropertiesBuilder.hxx>
+#include <NXOpen/BasePart.hxx>
+#include <NXOpen/Builder.hxx>
+#include <NXOpen/DateBuilder.hxx>
+#include <NXOpen/DateItemBuilder.hxx>
+#include <NXOpen/DateItemBuilderList.hxx>
+#include <NXOpen/Drawings_DraftingViewCollection.hxx>
+#include <NXOpen/Drawings_SectionView.hxx>
+#include <NXOpen/Expression.hxx>
+#include <NXOpen/MenuBar_ContextMenuProperties.hxx>
+#include <NXOpen/NXObject.hxx>
+#include <NXOpen/ObjectGeneralPropertiesBuilder.hxx>
+#include <NXOpen/Part.hxx>
+#include <NXOpen/PartCollection.hxx>
+#include <NXOpen/PropertiesManager.hxx>
+#include <NXOpen/SelectNXObjectList.hxx>
+#include <NXOpen/Selection.hxx>
+#include <NXOpen/Session.hxx>
+#include <NXOpen/TaggedObject.hxx>
+#include <NXOpen/Update.hxx>
 
 #include <stdio.h>
 #include <uf.h>
@@ -69,7 +96,7 @@
 
 using namespace NXOpen;
 
-void rename_label(std::string str_num, std::string str_sumbol, tag_t view_tag);
+void rename_label(std::string str_num, std::string str_sumbol, tag_t view_tag, bool check);
 
 void search_name()
 {
@@ -123,7 +150,39 @@ void search_name()
                     copy_str[i] = str[i];
                 }
                 strcpy(const_cast<char*>(str_2.c_str()), copy_str.c_str());
-                rename_label(str_num_draw, str_2, view_list[x]);
+
+                bool check = false;
+                tag_t sxline_tag;
+                UF_DRAW_ask_sxline_of_sxview(view_list[x], &sxline_tag);
+                double step_dir[3];
+                double arrow_dir[3];
+                tag_t pview_tag;
+                int num_sxviews;
+                tag_p_t sxview_tags;
+                int num_sxsegs;
+                tag_p_t sxseg_tags;
+                UF_DRAW_sxline_status_t sxline_status;
+                //UF_DRAW_ask_unfolded_sxline
+                UF_DRAW_ask_simple_sxline(sxline_tag, step_dir, arrow_dir, &pview_tag, &num_sxviews, &sxview_tags, &num_sxsegs, &sxseg_tags, &sxline_status);
+                char name[UF_OBJ_NAME_LEN + 1];
+                tag_t im;
+                UF_DRAW_ask_drawing_of_view(pview_tag, &im);
+                UF_OBJ_ask_name(im, name);
+                
+                
+                std::string str_num_draw1 = name;
+                auto slashPosition = str_num_draw1.find_first_of(" "); // начина€ с 11 плюсов
+                //strin4.erase(strin4.begin() + slashPosition4 + 1, strin4.end()); // с начала
+                str_num_draw1.erase(str_num_draw1.begin(), str_num_draw1.begin() + slashPosition); //с конца
+                //”дал€ем лишние пробелы из строки
+                str_num_draw1.erase(remove(str_num_draw1.begin(), str_num_draw1.end(), ' '), str_num_draw1.end()); //с конца
+
+                //ѕроверка если на одном листе то не запускать
+                if (str_num_draw != str_num_draw1)
+                    rename_label(str_num_draw, str_2, view_list[x], check);
+
+                UF_free(sxview_tags);
+                UF_free(sxseg_tags);
             }
         }
     }
@@ -132,7 +191,7 @@ void search_name()
 
 
 
-void rename_label(std::string str_num, std::string str_sumbol, tag_t view_tag)
+void rename_label(std::string str_num, std::string str_sumbol, tag_t view_tag, bool check)
 {
     Session* theSession = Session::GetSession();
     Part* workPart(theSession->Parts()->Work());
@@ -168,8 +227,51 @@ void rename_label(std::string str_num, std::string str_sumbol, tag_t view_tag)
         strin4.erase(strin4.begin() + slashPosition4 + 1, strin4.end()); // с начала
         //strin4.erase(strin4.begin(), strin4.begin() + slashPosition4); //с конца
 
+
+        std::string strin5 = (std::string)string_value;
+        auto slashPosition5 = strin5.find_first_of("("); // начина€ с 11 плюсов
+        strin5.erase(strin5.begin() + slashPosition5 + 1, strin5.end()); // с начала
+        //strin5.erase(strin5.begin(), strin5.begin() + slashPosition5); //с конца
+
+        std::string skob;
+        bool check_s = false;
+        for (int i = 0; i < strin5.size(); i++)
+        {
+            if (strin5[i] == '(')
+                check_s = true;
+            if (strin5[i] != '(')
+                skob = strin5[i];
+        }
+
+        
+        /*
+        UF_UI_write_listing_window(("string_value - " + std::string(string_value)).c_str());
+        UF_UI_write_listing_window("\n");
+        UF_UI_write_listing_window(("strin5 - " + std::string(strin5)).c_str());
+        UF_UI_write_listing_window("\n");
+        UF_UI_write_listing_window(("strin0 - " + std::string(strin0)).c_str());
+        UF_UI_write_listing_window("\n");
+        UF_UI_write_listing_window(("strin4 - " + std::string(strin4)).c_str());
+        UF_UI_write_listing_window("\n");*/
+
+        
+
+
+        std::string str_1 = "(" + str_num + ")";
         //ћен€ем и копируем
-        new_labelSTR = str_sumbol.c_str() + str_num + strin4 + "<L>";
+        if (!check_s)
+        {
+            //new_labelSTR = str_sumbol.c_str() + str_1 + strin0;// strin4 + "<L>";
+            new_labelSTR = str_sumbol.c_str() + str_1 + strin0;// strin4 + "<L>";
+        }
+        else
+        {
+            new_labelSTR = skob + str_1 + strin0;// strin4 + "<L>";
+        }
+        
+        
+        //new_labelSTR = "ј1" + str_1 + strin0;
+
         strcpy(string_value, new_labelSTR.c_str());
 
         std::string str = str_sumbol;
@@ -220,6 +322,48 @@ void rename_label(std::string str_num, std::string str_sumbol, tag_t view_tag)
         {
             //UF_ATTR_set_string_user_attribute(view_tag, "VWLETTER", UF_ATTR_NOT_ARRAY, (char*)nstr3.GetText(), &has_attribute);
             UF_ATTR_set_string_user_attribute(view_tag, "VWLETTER_DISP", UF_ATTR_NOT_ARRAY, string_value, &has_attribute);
+            tag_t sxline_tag;
+            UF_DRAW_ask_sxline_of_sxview(view_tag, &sxline_tag);
+
+            //UF_UI_write_listing_window(("sxline - " + std::to_string(sxline_tag)).c_str());
+            //UF_UI_write_listing_window("\n");
+
+            double step_dir[3];
+            double arrow_dir[3];
+            tag_t pview_tag;
+            int num_sxviews;
+            tag_p_t sxview_tags;
+            int num_sxsegs;
+            tag_p_t sxseg_tags;
+            UF_DRAW_sxline_status_t sxline_status;
+            //UF_DRAW_ask_unfolded_sxline
+                UF_DRAW_ask_simple_sxline(sxline_tag, step_dir, arrow_dir, &pview_tag, &num_sxviews, &sxview_tags, &num_sxsegs, &sxseg_tags, &sxline_status);
+
+            char name[UF_OBJ_NAME_LEN + 1];
+            //UF_OBJ_ask_name(pview_tag, name);
+            //UF_UI_write_listing_window(("name - " + std::string(name)).c_str());
+            //UF_UI_write_listing_window("\n");
+
+            //UF_UI_write_listing_window(("pview_tag - " + std::to_string(pview_tag)).c_str());
+            //UF_UI_write_listing_window("\n");
+
+            tag_t im;
+            UF_DRAW_ask_drawing_of_view(pview_tag, &im);
+            UF_OBJ_ask_name(im, name);
+            //UF_UI_write_listing_window(("im - " + std::string(name)).c_str());
+            //UF_UI_write_listing_window("\n");
+
+            std::string str_num_draw = name;
+            auto slashPosition4 = str_num_draw.find_first_of(" "); // начина€ с 11 плюсов
+            //strin4.erase(strin4.begin() + slashPosition4 + 1, strin4.end()); // с начала
+            str_num_draw.erase(str_num_draw.begin(), str_num_draw.begin() + slashPosition4); //с конца
+            //”дал€ем лишние пробелы из строки
+            str_num_draw.erase(remove(str_num_draw.begin(), str_num_draw.end(), ' '), str_num_draw.end()); //с конца
+
+
+            UF_free(sxview_tags);
+            UF_free(sxseg_tags);
+
 
             std::vector<NXOpen::DisplayableObject*> viewlabels1;
             NXOpen::Annotations::Note* note3(dynamic_cast<NXOpen::Annotations::Note*>(NXObjectManager::Get(view_label_tag)));
@@ -253,17 +397,19 @@ void rename_label(std::string str_num, std::string str_sumbol, tag_t view_tag)
             auto slashPosition2 = strin2.find_first_of('@'); // начина€ с 11 плюсов
             strin2.erase(strin2.begin() + slashPosition2, strin2.end()); // с начала
 
-            /*UF_UI_write_listing_window(strin1.c_str());
+           /*UF_UI_write_listing_window(strin1.c_str());
             UF_UI_write_listing_window("\n");
             UF_UI_write_listing_window(strin2.c_str());
             UF_UI_write_listing_window("\n");
             UF_UI_write_listing_window(strin.c_str());
             UF_UI_write_listing_window("\n");
+            tag_t Solid_tag;
+            
 
             UF_UI_write_listing_window("########################");
-            UF_UI_write_listing_window("\n");*/   
+            UF_UI_write_listing_window("\n"); */   
 
-            new_labelSTR_2 = (strin1 + "@VWLETTER>-" + strin2 + "@VWLETTER>(" + (std::string)str_num + ")<C>");
+            new_labelSTR_2 = (strin1 + "@VWLETTER>-" + strin2 + "@VWLETTER> (" + (std::string)str_num_draw + ")<C>");
             strcpy(string_label_value, new_labelSTR_2.c_str());
             customizedtext1.push_back(string_label_value);
 
@@ -276,9 +422,10 @@ void rename_label(std::string str_num, std::string str_sumbol, tag_t view_tag)
     }
     catch (std::exception& ex)
     {
-        uc1601(const_cast<char*>("ќй, что то пошло не так..."), 1);
+        UF_UI_open_listing_window();
+        UF_UI_write_listing_window(ex.what() + '\n');
+        //uc1601(const_cast<char*>("ќй, что то пошло не так..."), 1);
     }
-
 }
 
 
